@@ -99,6 +99,7 @@ struct RootMove {
     Value             averageScore     = -VALUE_INFINITE;
     Value             meanSquaredScore = -VALUE_INFINITE * VALUE_INFINITE;
     Value             uciScore         = -VALUE_INFINITE;
+    Value             styleBias        = VALUE_ZERO;
     bool              scoreLowerbound  = false;
     bool              scoreUpperbound  = false;
     int               selDepth         = 0;
