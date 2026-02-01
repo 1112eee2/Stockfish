@@ -109,6 +109,8 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Skill Level", Option(20, 0, 20));
 
+    options.add("Aggression", Option(1, 1, 10));
+
     options.add("Move Overhead", Option(10, 0, 5000));
 
     options.add("nodestime", Option(0, 0, 10000));
