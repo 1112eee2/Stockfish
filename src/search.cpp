@@ -1415,6 +1415,96 @@ moves_loop:  // When in check, search starts here
                 // is not a problem when sorting because the sort is stable and the
                 // move position in the list is preserved - just the PV is pushed up.
                 rm.score = -VALUE_INFINITE;
+
+            rm.styleBias = VALUE_ZERO;
+
+            int aggression = int(options["Aggression"]);
+
+            if (aggression >= 2 && !tbConfig.rootInTB)
+            {
+                int  piecesCount = pos.count<ALL_PIECES>();
+                bool lowMaterial =
+                  tbConfig.cardinality && piecesCount <= tbConfig.cardinality
+                  && pos.rule50_count() == 0 && !pos.can_castle(ANY_CASTLING);
+
+                if (!lowMaterial)
+                {
+                    constexpr int EQ_WINDOW               = 60;
+                    constexpr int FADE_OUT                = 200;
+                    constexpr int MAX_BIAS_AT_10          = 25;
+                    constexpr int CHECK_BONUS_AT_10       = 12;
+                    constexpr int CAPTURE_BONUS_AT_10     = 8;
+                    constexpr int KING_RING_AT_10         = 12;
+                    constexpr int QUEEN_TRADE_PENALTY_AT_10 = 10;
+                    constexpr int REPETITION_PENALTY_AT_10 = 8;
+                    constexpr int SEE_MARGIN_AT_10        = -30;
+
+                    const double s       = (aggression - 1) / 9.0;
+                    const int    maxBias = int(std::lround(s * MAX_BIAS_AT_10));
+
+                    if (maxBias > 0)
+                    {
+                        int biasSum = 0;
+                        bool isCapture = pos.capture(move);
+
+                        if (givesCheck && pos.see_ge(move, 0))
+                            biasSum += int(std::lround(s * CHECK_BONUS_AT_10));
+
+                        int seeMargin = int(std::lround(s * SEE_MARGIN_AT_10));
+                        if (isCapture && pos.see_ge(move, seeMargin))
+                            biasSum += int(std::lround(s * CAPTURE_BONUS_AT_10));
+
+                        if (isCapture && type_of(movedPiece) == QUEEN
+                            && type_of(pos.piece_on(move.to_sq())) == QUEEN)
+                        {
+                            constexpr int tradeMargin = 10;
+                            if (pos.see_ge(move, -tradeMargin)
+                                && !pos.see_ge(move, tradeMargin + 1))
+                                biasSum -= int(std::lround(s * QUEEN_TRADE_PENALTY_AT_10));
+                        }
+
+                        {
+                            Color    them        = ~pos.side_to_move();
+                            Square   kingSquare  = pos.square<KING>(them);
+                            Bitboard kingRing    = king_attack(kingSquare);
+                            Bitboard occupied    = pos.pieces();
+                            Bitboard occupiedNew = occupied ^ square_bb(move.from_sq());
+
+                            Bitboard before =
+                              attacks_bb(movedPiece, move.from_sq(), occupied) & kingRing;
+                            Bitboard after =
+                              attacks_bb(movedPiece, move.to_sq(), occupiedNew) & kingRing;
+                            int ringDelta =
+                              std::clamp(popcount(after) - popcount(before), -1, 1);
+
+                            if (ringDelta != 0)
+                                biasSum += ringDelta * int(std::lround(s * KING_RING_AT_10));
+                        }
+
+                        if (std::abs(value) <= EQ_WINDOW)
+                        {
+                            StateInfo tmpState;
+                            pos.do_move(move, tmpState);
+                            bool repeats = pos.is_repetition(ss->ply + 1);
+                            pos.undo_move(move);
+
+                            if (repeats)
+                                biasSum -= int(std::lround(s * REPETITION_PENALTY_AT_10));
+                        }
+
+                        double fade =
+                          1.0 - std::min(1.0, std::abs(value) / double(FADE_OUT));
+
+                        if (is_valid(ss->staticEval) && std::abs(ss->staticEval) > EQ_WINDOW)
+                            fade = 0.0;
+
+                        int aggressionDelta = std::clamp(biasSum, -maxBias, maxBias);
+
+                        if (fade > 0.0)
+                            rm.styleBias = int(std::lround(aggressionDelta * fade));
+                    }
+                }
+            }
         }
 
         // In case we have an alternative move equal in eval to the current bestmove,
