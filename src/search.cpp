@@ -609,6 +609,71 @@ void Search::Worker::clear() {
     refreshTable.clear(networks[numaAccessToken]);
 }
 
+namespace {
+
+constexpr int QueenTradeSeeMargin  = 50;
+constexpr int RepetitionEvalMargin = 30;
+constexpr int KingRingDeltaCap     = 4;
+
+bool is_safe_check(const Position& pos, Move move) {
+    return pos.gives_check(move) && pos.see_ge(move, 0);
+}
+
+bool is_safe_capture(const Position& pos, Move move, int margin) {
+    return pos.capture(move) && pos.see_ge(move, margin);
+}
+
+bool is_neutral_queen_trade(const Position& pos, Move move) {
+    if (!pos.capture(move))
+        return false;
+
+    const Piece moved    = pos.piece_on(move.from_sq());
+    const Piece captured = pos.piece_on(move.to_sq());
+
+    if (type_of(moved) != QUEEN || type_of(captured) != QUEEN)
+        return false;
+
+    return pos.see_ge(move, -QueenTradeSeeMargin) && !pos.see_ge(move, QueenTradeSeeMargin + 1);
+}
+
+int king_ring_delta(Position& pos, Move move) {
+    const Color  us        = pos.side_to_move();
+    const Square enemyKing = pos.square<KING>(~us);
+    const Bitboard ring    = Bitboards::king_attack(enemyKing);
+    const Piece movedPiece = pos.piece_on(move.from_sq());
+
+    if (movedPiece == NO_PIECE || ring == 0)
+        return 0;
+
+    const int before =
+      popcount(attacks_bb(movedPiece, move.from_sq(), pos.pieces()) & ring);
+
+    StateInfo st;
+    pos.do_move(move, st);
+
+    int after = 0;
+    const Piece movedAfter = pos.piece_on(move.to_sq());
+    if (movedAfter != NO_PIECE)
+        after = popcount(attacks_bb(movedAfter, move.to_sq(), pos.pieces()) & ring);
+
+    pos.undo_move(move);
+
+    return std::clamp(after - before, -KingRingDeltaCap, KingRingDeltaCap);
+}
+
+bool is_repetition_choice(Position& pos, Move move, int ply, Value eval = VALUE_ZERO) {
+    if (std::abs(eval) > RepetitionEvalMargin)
+        return false;
+
+    StateInfo st;
+    pos.do_move(move, st);
+    const bool repeated = pos.is_repetition(ply) || pos.is_draw(ply);
+    pos.undo_move(move);
+    return repeated;
+}
+
+}  // namespace
+
 
 // Main search function for both PV and non-PV nodes
 template<NodeType nodeType>
