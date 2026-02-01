@@ -104,6 +104,22 @@ Detailed compilation instructions for all platforms can be found in our
 [documentation][wiki-compile-link]. Our wiki also has information about
 the [UCI commands][wiki-uci-link] supported by Stockfish.
 
+## Automated Windows releases
+
+This fork builds Windows executables on tag pushes and publishes them to GitHub
+Releases. To create a release, tag a commit and push the tag:
+
+```
+git tag v18.0
+git push origin v18.0
+```
+
+After the workflow completes, download the `.exe` assets from the repository's
+GitHub Releases page.
+
+The workflow uses MSYS2/MinGW-w64 with these packages: `mingw-w64-x86_64-gcc`,
+`mingw-w64-x86_64-make`, and `mingw-w64-x86_64-binutils`.
+
 ## Terms of use
 
 Stockfish is free and distributed under the
