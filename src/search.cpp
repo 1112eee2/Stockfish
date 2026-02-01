@@ -639,7 +639,7 @@ bool is_neutral_queen_trade(const Position& pos, Move move) {
 int king_ring_delta(Position& pos, Move move) {
     const Color  us        = pos.side_to_move();
     const Square enemyKing = pos.square<KING>(~us);
-    const Bitboard ring    = king_attack(enemyKing);
+    const Bitboard ring    = Bitboards::king_attack(enemyKing);
     const Piece movedPiece = pos.piece_on(move.from_sq());
 
     if (movedPiece == NO_PIECE || ring == 0)
