@@ -90,7 +90,10 @@ struct RootMove {
     bool operator==(const Move& m) const { return pv[0] == m; }
     // Sort in descending order
     bool operator<(const RootMove& m) const {
-        return m.score != score ? m.score < score : m.previousScore < previousScore;
+        const Value scoreKey      = score + styleBias;
+        const Value otherScoreKey = m.score + m.styleBias;
+        return otherScoreKey != scoreKey ? otherScoreKey < scoreKey
+                                         : m.previousScore < previousScore;
     }
 
     uint64_t          effort           = 0;
